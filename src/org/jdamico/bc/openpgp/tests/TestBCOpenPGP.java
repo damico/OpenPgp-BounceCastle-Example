@@ -1,3 +1,4 @@
+package org.jdamico.bc.openpgp.tests;
 import static org.junit.Assert.*;
 
 import java.io.FileInputStream;
@@ -14,6 +15,8 @@ import java.security.SignatureException;
 
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import org.bouncycastle.openpgp.PGPException;
+import org.jdamico.bc.openpgp.utils.PGPUtil;
+import org.jdamico.bc.openpgp.utils.RSAKeyPairGenerator;
 import org.junit.Test;
 
 

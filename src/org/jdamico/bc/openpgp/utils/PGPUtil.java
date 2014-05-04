@@ -1,3 +1,4 @@
+package org.jdamico.bc.openpgp.utils;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;
@@ -31,6 +32,7 @@ import org.bouncycastle.openpgp.PGPSecretKeyRingCollection;
  * Taken from org.bouncycastle.openpgp.examples
  *
  * @author seamans
+ * @author jdamico <damico@dcon.com.br>
  *
  */
 public class PGPUtil {
