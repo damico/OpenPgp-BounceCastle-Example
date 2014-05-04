@@ -27,6 +27,13 @@ import org.bouncycastle.openpgp.PGPPublicKeyRing;
 import org.bouncycastle.openpgp.PGPPublicKeyRingCollection;
 import org.bouncycastle.openpgp.PGPSecretKey;
 import org.bouncycastle.openpgp.PGPSecretKeyRingCollection;
+import org.bouncycastle.openpgp.operator.PBESecretKeyDecryptor;
+import org.bouncycastle.openpgp.operator.PublicKeyDataDecryptorFactory;
+import org.bouncycastle.openpgp.operator.jcajce.JcaPGPDigestCalculatorProviderBuilder;
+import org.bouncycastle.openpgp.operator.jcajce.JcePBESecretKeyDecryptorBuilder;
+import org.bouncycastle.openpgp.operator.jcajce.JcePGPDataEncryptorBuilder;
+import org.bouncycastle.openpgp.operator.jcajce.JcePublicKeyDataDecryptorFactoryBuilder;
+import org.bouncycastle.openpgp.operator.jcajce.JcePublicKeyKeyEncryptionMethodGenerator;
 
 /**
  * Taken from org.bouncycastle.openpgp.examples
@@ -35,12 +42,21 @@ import org.bouncycastle.openpgp.PGPSecretKeyRingCollection;
  * @author jdamico <damico@dcon.com.br>
  *
  */
-public class PGPUtil {
+public class PgpHelper {
+	
+	private static PgpHelper INSTANCE = null;
+	
+	public static PgpHelper getInstance(){
+		
+		if(INSTANCE == null) INSTANCE = new PgpHelper();
+		return INSTANCE;
+	}
+	
+	private PgpHelper(){}
 
-	@SuppressWarnings("unchecked")
-	public static PGPPublicKey readPublicKey(InputStream in) throws IOException, PGPException {
+
+	public PGPPublicKey readPublicKey(InputStream in) throws IOException, PGPException {
         in = org.bouncycastle.openpgp.PGPUtil.getDecoderStream(in);
-
         PGPPublicKeyRingCollection pgpPub = new PGPPublicKeyRingCollection(in);
 
         //
@@ -85,7 +101,7 @@ public class PGPUtil {
      * @throws PGPException
      * @throws NoSuchProviderException
      */
-    private static PGPPrivateKey findSecretKey(InputStream keyIn, long keyID, char[] pass)
+    public PGPPrivateKey findSecretKey(InputStream keyIn, long keyID, char[] pass)
     	throws IOException, PGPException, NoSuchProviderException
     {
         PGPSecretKeyRingCollection pgpSec = new PGPSecretKeyRingCollection(
@@ -96,24 +112,23 @@ public class PGPUtil {
         if (pgpSecKey == null) {
             return null;
         }
-
-        return pgpSecKey.extractPrivateKey(pass, "BC");
+        
+        PBESecretKeyDecryptor a = new JcePBESecretKeyDecryptorBuilder(new JcaPGPDigestCalculatorProviderBuilder().setProvider("BC").build()).setProvider("BC").build(pass);
+        
+        return pgpSecKey.extractPrivateKey(a);
     }
 
     /**
      * decrypt the passed in message stream
      */
     @SuppressWarnings("unchecked")
-	public static void decryptFile(InputStream in, OutputStream out, InputStream keyIn, char[] passwd)
+	public void decryptFile(InputStream in, OutputStream out, InputStream keyIn, char[] passwd)
     	throws Exception
     {
     	Security.addProvider(new BouncyCastleProvider());
-
         in = org.bouncycastle.openpgp.PGPUtil.getDecoderStream(in);
-
         PGPObjectFactory pgpF = new PGPObjectFactory(in);
         PGPEncryptedDataList enc;
-
         Object o = pgpF.nextObject();
         //
         // the first object might be a PGP marker packet.
@@ -133,7 +148,6 @@ public class PGPUtil {
 
         while (sKey == null && it.hasNext()) {
             pbe = it.next();
-
             sKey = findSecretKey(keyIn, pbe.getKeyID(), passwd);
         }
 
@@ -141,7 +155,9 @@ public class PGPUtil {
             throw new IllegalArgumentException("Secret key for message not found.");
         }
 
-        InputStream clear = pbe.getDataStream(sKey, "BC");
+        PublicKeyDataDecryptorFactory b = new JcePublicKeyDataDecryptorFactoryBuilder().setProvider("BC").setContentProvider("BC").build(sKey);
+        
+        InputStream clear = pbe.getDataStream(b);
 
         PGPObjectFactory plainFact = new PGPObjectFactory(clear);
 
@@ -156,10 +172,8 @@ public class PGPUtil {
 
         if (message instanceof  PGPLiteralData) {
             PGPLiteralData ld = (PGPLiteralData) message;
-
             InputStream unc = ld.getInputStream();
             int ch;
-
             while ((ch = unc.read()) >= 0) {
                 out.write(ch);
             }
@@ -176,7 +190,7 @@ public class PGPUtil {
         }
     }
 
-    public static void encryptFile(OutputStream out, String fileName,
+    public void encryptFile(OutputStream out, String fileName,
         PGPPublicKey encKey, boolean armor, boolean withIntegrityCheck)
         throws IOException, NoSuchProviderException, PGPException
     {
@@ -196,11 +210,13 @@ public class PGPUtil {
 
         comData.close();
 
-        PGPEncryptedDataGenerator cPk = new PGPEncryptedDataGenerator(
-            PGPEncryptedData.CAST5, withIntegrityCheck,
-            new SecureRandom(), "BC");
+        JcePGPDataEncryptorBuilder c = new JcePGPDataEncryptorBuilder(PGPEncryptedData.CAST5).setWithIntegrityPacket(withIntegrityCheck).setSecureRandom(new SecureRandom()).setProvider("BC");
+        
+        PGPEncryptedDataGenerator cPk = new PGPEncryptedDataGenerator(c);
+        
+        JcePublicKeyKeyEncryptionMethodGenerator d = new JcePublicKeyKeyEncryptionMethodGenerator(encKey).setProvider(new BouncyCastleProvider()).setSecureRandom(new SecureRandom());
 
-        cPk.addMethod(encKey);
+        cPk.addMethod(d);
 
         byte[] bytes = bOut.toByteArray();
 
